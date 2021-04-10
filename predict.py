@@ -113,5 +113,5 @@ probs, classes = predict(args.image_path, model, args.top_k)
 
 names = [cat_to_name[i] for i in classes]
 
-print(names)
-print(probs)
+print('Predictions in descending likelihood: {}, {}, {}'.format(*names))
+print('Corresponding probabilities: {:.3f}, {:.3f}, {:.3f}'.format(*probs))
