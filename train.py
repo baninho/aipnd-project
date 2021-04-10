@@ -1,6 +1,5 @@
 import torch
-from torch import nn
-from torch import optim
+from torch import nn, optim
 import torch.nn.functional as F
 from torchvision import datasets, transforms, models
 from collections import OrderedDict
@@ -82,10 +81,10 @@ with open('cat_to_name.json', 'r') as f:
 # : model architecture from parser
 # Build and train your network
 if args.arch == 'vgg':
-	model = models.vgg16()
+	model = models.vgg16(pretrained=True)
 	feature_units = 25088
 elif args.arch == 'alexnet':
-	model = models.alexnet()
+	model = models.alexnet(pretrained=True)
 	feature_units = 9216
 else:
 	print('model architecture parameter must be vgg or alexnet')
@@ -100,9 +99,7 @@ for param in model.parameters():
 classifier = nn.Sequential(OrderedDict([
                           ('fc1', nn.Linear(feature_units, args.hidden_units)),
                           ('relu', nn.ReLU()),
-                          ('fc2', nn.Linear(args.hidden_units, 1024)),
-                          ('relu2', nn.ReLU()),
-                          ('fc3', nn.Linear(1024, len(cat_to_name))),
+                          ('fc2', nn.Linear(args.hidden_units, len(cat_to_name))),
                           ('output', nn.LogSoftmax(dim=1))
                           ]))
     
@@ -116,9 +113,16 @@ optimizer = optim.Adam(model.classifier.parameters(), lr=learning_rate)
 
 # : gpu usage from parser
 if args.gpu:
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print('Using GPU for training')
+    else:
+        device = torch.device('cpu')
+        print('No GPU available, using CPU for training')
 else: 
-	device = torch.device("cpu")
+    device = torch.device('cpu')
+    print('Using CPU for training')
+    
 model.to(device);
 
 # : epochs from parser
