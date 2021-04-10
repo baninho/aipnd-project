@@ -10,47 +10,27 @@ import numpy as np
 import json
 
 import argparse
+from os import path
 
 import workspace_utils
 
 
 def get_input_args():
-    """
-    Retrieves and parses the 3 command line arguments provided by the user when
-    they run the program from a terminal window. This function uses Python's 
-    argparse module to created and defined these 3 command line arguments. If 
-    the user fails to provide some or all of the 3 arguments, then the default 
-    values are used for the missing arguments. 
-    Command Line Arguments:
-      1. Image Folder as --dir with default value 'pet_images'
-      2. CNN Model Architecture as --arch with default value 'vgg'
-      3. Text File with Dog Names as --dogfile with default value 'dognames.txt'
-    This function returns these arguments as an ArgumentParser object.
-    Parameters:
-     None - simply using argparse module to create & store command line arguments
-    Returns:
-     parse_args() -data structure that stores the command line arguments object  
-    """
-    # Replace None with parser.parse_args() parsed argument collection that 
-    # you created with this function 
-
-    # Creates Argument Parser object named parser
     parser = argparse.ArgumentParser()
 
-    # Argument 1: that's a path to a folder
     parser.add_argument('data_directory', type = str,
                         help = 'path to the folder of image data') 
-    parser.add_argument('--save_dir', type = str, default = '', 
+    parser.add_argument('--save_dir', type = str, default = 'flowers_checkpoint.pth', 
                         help = 'path to the folder for saving the checkpoint') 
     parser.add_argument('--arch', type = str, default = 'vgg', 
-                        help = 'cnn model Architecture to use for the classifier') 
+                        help = 'cnn model Architecture to use for the feature detector: vgg or alexnet') 
     parser.add_argument('--learning_rate', type = float, default = 0.01, 
                         help = 'learning rate for classifier training')
     parser.add_argument('--hidden_units', type = int, default = 512, 
                         help = 'number of units in hidden layer of classifier') 
     parser.add_argument('--epochs', type = int, default = 20, 
                         help = 'number of epochs for classifier training') 
-    parser.add_argument('--gpu', type = int, action = 'store_const', const = 1, default = 0, 
+    parser.add_argument('--gpu', action = 'store_const', const = 1, default = 0, 
                         help = 'specify if gpu will be used if available in classifier training') 
     
     
@@ -64,11 +44,11 @@ def get_input_args():
 
 args = get_input_args()
 
-# TODO: parse argument instead
-data_dir = 'flowers'
-train_dir = data_dir + '/train'
-valid_dir = data_dir + '/valid'
-test_dir = data_dir + '/test'
+# : use argument for data_dir
+data_dir = args.data_directory
+train_dir = path.join(data_dir, 'train')
+valid_dir = path.join(data_dir, 'valid')
+test_dir = path.join(data_dir, 'test')
 
 # : Define your transforms for the training, validation, and testing sets
 train_transforms = transforms.Compose([transforms.RandomRotation(30),
@@ -98,19 +78,29 @@ validationloader= torch.utils.data.DataLoader(validation_data, batch_size=test_b
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
 
-# TODO: learning rate from parser
-# TODO: model architecture from parser
+# : learning rate from parser
+# : model architecture from parser
 # Build and train your network
-model = models.vgg16(pretrained=True)
+if args.arch == 'vgg':
+	model = models.vgg16()
+	feature_units = 25088
+elif args.arch == 'alexnet':
+	model = models.alexnet()
+	feature_units = 9216
+else:
+	print('model architecture parameter must be vgg or alexnet')
+	exit
+
+learning_rate = args.learning_rate
 
 for param in model.parameters():
     param.requires_grad = False
 
 
 classifier = nn.Sequential(OrderedDict([
-                          ('fc1', nn.Linear(25088, 500)),
+                          ('fc1', nn.Linear(feature_units, args.hidden_units)),
                           ('relu', nn.ReLU()),
-                          ('fc2', nn.Linear(500, 1024)),
+                          ('fc2', nn.Linear(args.hidden_units, 1024)),
                           ('relu2', nn.ReLU()),
                           ('fc3', nn.Linear(1024, len(cat_to_name))),
                           ('output', nn.LogSoftmax(dim=1))
@@ -122,14 +112,17 @@ for param in model.classifier.parameters():
 
 
 criterion = nn.NLLLoss()
-optimizer = optim.Adam(model.classifier.parameters(), lr=0.003)
+optimizer = optim.Adam(model.classifier.parameters(), lr=learning_rate)
 
-# TODO: gpu usage from parser
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# : gpu usage from parser
+if args.gpu:
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+else: 
+	device = torch.device("cpu")
 model.to(device);
 
-# TODO: epochs from parser
-epochs = 10
+# : epochs from parser
+epochs = args.epochs
 steps = 0
 running_loss = 0
 print_every = 15
@@ -196,6 +189,6 @@ print(f"Validation loss: {test_loss/len(validationloader):.3f}.. "
         f"Validation accuracy: {accuracy/len(validationloader):.3f}")
 
 # : Save the checkpoint 
-# TODO: save director from parser
-path = 'vgg16_flowers.pth'
+# : save directory from parser
+path = args.save_dir
 torch.save(model.state_dict(), path)
