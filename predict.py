@@ -33,21 +33,30 @@ def get_input_args():
 
 # : Write a function that loads a checkpoint and rebuilds the model
 # TODO: allow different architectures and get user choice from args
-def load_vgg16_flowers(path):
-    model = models.vgg16()
-    classifier = nn.Sequential(OrderedDict([
-                          ('fc1', nn.Linear(25088, 500)),
-                          ('relu', nn.ReLU()),
-                          ('fc2', nn.Linear(500, 1024)),
-                          ('relu2', nn.ReLU()),
-                          ('fc3', nn.Linear(1024, len(cat_to_name))),
-                          ('output', nn.LogSoftmax(dim=1))
-                          ]))
-    
-    model.classifier = classifier
-    model.load_state_dict(torch.load(path))
-    return model
 
+def model_from_checkpoint(path):
+    checkpoint = torch.load(path)
+    if checkpoint['arch'] == 'vgg':
+        model = models.vgg16()
+        feature_units = 25088
+    elif checkpoint['arch'] == 'alexnet':
+        model = models.alexnet()
+        feature_units = 9216
+    else:
+        print('unrecognized model architecture')
+        exit
+
+    classifier = nn.Sequential(OrderedDict([
+                              ('fc1', nn.Linear(feature_units, checkpoint['hidden_units'])),
+                              ('relu', nn.ReLU()),
+                              ('fc2', nn.Linear(checkpoint['hidden_units'], len(cat_to_name))),
+                              ('output', nn.LogSoftmax(dim=1))
+                              ]))
+        
+    model.classifier = classifier
+    model.load_state_dict(checkpoint['state_dict'])
+    return model
+    
 
 def process_image(image):
     ''' Scales, crops, and normalizes a PIL image for a PyTorch model,
@@ -96,7 +105,7 @@ test_transforms = transforms.Compose([transforms.Resize(255),
                                                            [0.229, 0.224, 0.225])])
 
 # : model path from args
-model = load_vgg16_flowers(args.checkpoint)
+model = model_from_checkpoint(args.checkpoint)
 model.eval()
 
 # : topk from args
