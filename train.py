@@ -195,4 +195,5 @@ print(f"Validation loss: {test_loss/len(validationloader):.3f}.. "
 # : Save the checkpoint 
 # : save directory from parser
 path = args.save_dir
+model.to(torch.device('cpu'))
 torch.save(model.state_dict(), path)
