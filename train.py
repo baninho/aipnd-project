@@ -37,6 +37,7 @@ def get_input_args():
     return parser.parse_args()
 
 
+
 #
 # main
 #
@@ -72,7 +73,7 @@ train_batch_size = 64
 test_batch_size = 64
 trainloader = torch.utils.data.DataLoader(train_data, batch_size=train_batch_size, shuffle=True)
 testloader = torch.utils.data.DataLoader(test_data, batch_size=test_batch_size)
-validationloader= torch.utils.data.DataLoader(validation_data, batch_size=test_batch_size)
+validationloader = torch.utils.data.DataLoader(validation_data, batch_size=test_batch_size)
 
 with open('cat_to_name.json', 'r') as f:
     cat_to_name = json.load(f)
@@ -196,4 +197,10 @@ print(f"Validation loss: {test_loss/len(validationloader):.3f}.. "
 # : save directory from parser
 path = args.save_dir
 model.to(torch.device('cpu'))
-torch.save(model.state_dict(), path)
+
+checkpoint = {
+	'state_dict': model.state_dict(),
+	'arch': args.arch,
+	'hidden_units': args.hidden_units,
+}
+torch.save(checkpoint, path)
