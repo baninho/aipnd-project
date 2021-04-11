@@ -34,8 +34,9 @@ def get_input_args():
 # : Write a function that loads a checkpoint and rebuilds the model
 # TODO: allow different architectures and get user choice from args
 
-def model_from_checkpoint(path):
+def model_from_checkpoint(path, class_count):
     checkpoint = torch.load(path)
+
     if checkpoint['arch'] == 'vgg':
         model = models.vgg16()
         feature_units = 25088
@@ -49,7 +50,7 @@ def model_from_checkpoint(path):
     classifier = nn.Sequential(OrderedDict([
                               ('fc1', nn.Linear(feature_units, checkpoint['hidden_units'])),
                               ('relu', nn.ReLU()),
-                              ('fc2', nn.Linear(checkpoint['hidden_units'], len(cat_to_name))),
+                              ('fc2', nn.Linear(checkpoint['hidden_units'], class_count)),
                               ('output', nn.LogSoftmax(dim=1))
                               ]))
         
@@ -62,6 +63,11 @@ def process_image(image):
     ''' Scales, crops, and normalizes a PIL image for a PyTorch model,
         returns an Numpy array
     '''
+    test_transforms = transforms.Compose([transforms.Resize(255),
+                                          transforms.CenterCrop(224),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize([0.485, 0.456, 0.406],
+                                                               [0.229, 0.224, 0.225])])
     
     # : Process a PIL image for use in a PyTorch model
     return test_transforms(image)
@@ -75,9 +81,9 @@ def predict(image_path, model, topk=5):
     input_tensor = process_image(Image.open(image_path))
     input_batch = input_tensor.unsqueeze(0)
 
-    if torch.cuda.is_available() and args.gpu:
-        input_batch = input_batch.to('cuda')
-        model.to('cuda')
+    device = torch.device('cuda' if torch.cuda.is_available() and args.gpu else 'cpu')
+    input_batch = input_batch.to(device)
+    model.to(device)
 
     with torch.no_grad():
         logits = model(input_batch)
@@ -89,29 +95,21 @@ def predict(image_path, model, topk=5):
     return top_p.to('cpu').numpy(), [str(cat+1) for cat in top_class.to('cpu').tolist()]
 
 
-#
-# main
-#
 
-args = get_input_args()
+if __name__ == "__main__":
+    args = get_input_args()
 
-with open(args.category_names, 'r') as f:
-    cat_to_name = json.load(f)
+    with open(args.category_names, 'r') as f:
+        cat_to_name = json.load(f)
 
-test_transforms = transforms.Compose([transforms.Resize(255),
-                                      transforms.CenterCrop(224),
-                                      transforms.ToTensor(),
-                                      transforms.Normalize([0.485, 0.456, 0.406],
-                                                           [0.229, 0.224, 0.225])])
+    # : model path from args
+    model = model_from_checkpoint(args.checkpoint, len(cat_to_name))
+    model.eval()
 
-# : model path from args
-model = model_from_checkpoint(args.checkpoint)
-model.eval()
+    # : topk from args
+    probs, classes = predict(args.image_path, model, args.top_k)
 
-# : topk from args
-probs, classes = predict(args.image_path, model, args.top_k)
+    names = [cat_to_name[i] for i in classes]
 
-names = [cat_to_name[i] for i in classes]
-
-print('Predictions in descending likelihood: {}, {}, {}'.format(*names))
-print('Corresponding probabilities: {:.3f}, {:.3f}, {:.3f}'.format(*probs))
+    print('Predictions in descending likelihood: {}, {}, {}'.format(*names))
+    print('Corresponding probabilities: {:.3f}, {:.3f}, {:.3f}'.format(*probs))
